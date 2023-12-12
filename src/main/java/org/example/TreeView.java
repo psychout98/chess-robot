@@ -13,7 +13,6 @@ public class TreeView extends JFrame implements ActionListener {
     HashMap<String, JButton> buttons = new HashMap<>();
     JPanel centerPanel = new JPanel();
     JPanel northPanel = new JPanel();
-    JPanel eastPanel = new JPanel();
     JButton backButton = new JButton("root");
     Move move;
     Stack<Move> lastMove;
@@ -43,16 +42,8 @@ public class TreeView extends JFrame implements ActionListener {
         northPanel.add(flip);
         this.add(centerPanel, BorderLayout.CENTER);
         this.add(northPanel, BorderLayout.NORTH);
-        this.add(eastPanel, BorderLayout.EAST);
         treeSize.setText("Nodes: " + move.sumFutures());
         displayFutures();
-    }
-
-    private class BoardPanel extends JPanel {
-
-        public void paint(Graphics g) {
-
-        }
     }
 
     public static void main(String[] args) {
@@ -72,7 +63,7 @@ public class TreeView extends JFrame implements ActionListener {
     public void displayFutures() {
         if (move != null) {
             treeSize.setText("Nodes: " + move.sumFutures());
-            setTitle(move.getMoveString() + "(" + String.format("%.2f, %.2f, %.2f, %.2f",
+            setTitle(move.getMoveString() + "(" + String.format("%s, %s, %s, %s",
                     move.getTotalAdvantage(),
                     move.getMaterialAdvantage(),
                     move.getPositionAdvantage(),
@@ -87,7 +78,7 @@ public class TreeView extends JFrame implements ActionListener {
             buttons = new HashMap<>();
             futures = move.getFutures().stream().collect(Collectors.toMap(Move::getMoveCode, Function.identity()));
             for (Move future : move.getFutures()) {
-                JButton futureButton = new JButton(future.getMoveString() + " (" + String.format("%.2f", future.getTotalAdvantage()) + ")");
+                JButton futureButton = new JButton(future.getMoveString() + " (" + String.format("%s", future.getTotalAdvantage()) + ")");
                 if (!future.getFutures().isEmpty()) {
                     futureButton.addActionListener(this);
                 }

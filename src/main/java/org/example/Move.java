@@ -5,6 +5,7 @@ import lombok.*;
 import org.example.exception.InvalidMoveException;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Getter
 public class Move {
@@ -27,34 +28,34 @@ public class Move {
     private boolean enPassant;
     private boolean pushTwo;
     private final TreeSet<Move> futures;
-    private double materialAdvantage;
-    private double strategicAdvantage;
-    private double positionAdvantage;
-    private double totalAdvantage;
+    private int materialAdvantage;
+    private int strategicAdvantage;
+    private int positionAdvantage;
+    private int totalAdvantage;
     private static final String queensAndRooksAndPawns = "qQrRpP";
     private static final String queensAndBishops = "qQbB";
     private static final String kingsAndKnights = "kKnN";
     private static final HashMap<String, String> castle = new HashMap<>();
-    private static final double[] gradient = {0, 0.1, 0.2, 0.3, 0.3, 0.2, 0.1, 0};
-    private static final HashMap<Character, Double> pointValues = new HashMap<>();
+    private static final int[] gradient = {0, 1, 2, 4, 4, 2, 1, 0};
+    private static final HashMap<Character, Integer> pointValues = new HashMap<>();
     static {
         castle.put("0402", "q");
         castle.put("0406", "k");
         castle.put("7472", "Q");
         castle.put("7476", "K");
-        pointValues.put('q', -25.21);
-        pointValues.put('Q', 25.21);
-        pointValues.put('r', -12.70);
-        pointValues.put('R', 12.70);
-        pointValues.put('b', -8.36);
-        pointValues.put('B', 8.36);
-        pointValues.put('n', -8.17);
-        pointValues.put('N', 8.17);
-        pointValues.put('p', -1.98);
-        pointValues.put('P', 1.98);
-        pointValues.put('k', -30.0);
-        pointValues.put('K', 30.0);
-        pointValues.put('x', 0.0);
+        pointValues.put('q', -2521);
+        pointValues.put('Q', 2521);
+        pointValues.put('r', -1270);
+        pointValues.put('R', 1270);
+        pointValues.put('b', -836);
+        pointValues.put('B', 836);
+        pointValues.put('n', -817);
+        pointValues.put('N', 817);
+        pointValues.put('p', -198);
+        pointValues.put('P', 198);
+        pointValues.put('k', -300);
+        pointValues.put('K', 300);
+        pointValues.put('x', 0);
     }
     private static final Comparator<Move> moveComparator = new MoveComparator();
     private static final Runtime rt = Runtime.getRuntime();
@@ -283,42 +284,29 @@ public class Move {
                 valid = valid && !copyBoard.checkCheck(white);
             }
         } catch (InvalidMoveException e) {
-            System.out.println(e.getMessage());
             valid = false;
         }
-        futures.addAll(copyBoard.getMoves().values().stream().filter(Move::isValid).toList());
+        futures.addAll(copyBoard.getMoves().values().stream().filter(Move::isValid).collect(Collectors.toSet()));
         strategicAdvantage = calculateStrategicAdvantage();
         futures.removeIf(future -> !future.myMove);
         calculateTotalAdvantage();
     }
 
-    private void calculateAdvantage(int branchDepth, int maxDepth) {
-        if (branchDepth < maxDepth) {
-            futures.forEach(future -> future.calculateAdvantage(branchDepth + 1, maxDepth));
-            try {
-                Move bestMove = white ? futures.first() : futures.last();
-                totalAdvantage = bestMove.totalAdvantage;
-            } catch (NoSuchElementException ignored) {
-                totalAdvantage = white ? 100 : -100;
-            }
-        }
-    }
-
-    private double calculateStrategicAdvantage() {
-        double whiteAttacks = futures.stream()
+    private int calculateStrategicAdvantage() {
+        int whiteAttacks = futures.stream()
                 .filter(future -> future.valid && future.white)
-                .mapToDouble(future -> calculatePoints(future.endKey) + future.positionAdvantage).sum();
-        double blackAttacks = futures.stream()
+                .mapToInt(future -> future.positionAdvantage).sum();
+        int blackAttacks = futures.stream()
                 .filter(future -> future.valid && !future.white)
-                .mapToDouble(future -> calculatePoints(future.endKey) + future.positionAdvantage).sum();
-        double kingQueenFactor = castleMove ? 3 : key == 'k' || key == 'K' || key == 'q' || key == 'Q' ? -3 : 0;
+                .mapToInt(future -> future.positionAdvantage).sum();
+        int kingQueenFactor = castleMove ? 500 : key == 'k' || key == 'K' || key == 'q' || key == 'Q' ? -100 : 0;
 
-        return (white ? 1 : -1) * (kingQueenFactor) + (whiteAttacks + blackAttacks) / 10;
+        return (white ? 1 : -1) * (kingQueenFactor) + (whiteAttacks + blackAttacks);
     }
 
     private void calculatePositionAdvantage() {
-        double rowControl = gradient[endRow];
-        double colControl = gradient[endCol];
+        int rowControl = gradient[endRow];
+        int colControl = gradient[endCol];
         positionAdvantage = (white ? 1 : -1) * (rowControl + colControl);
     }
 
@@ -332,8 +320,8 @@ public class Move {
         }
     }
 
-    private static double calculatePoints(char key) {
-        return Objects.requireNonNullElse(pointValues.get(key), 0.0);
+    private static int calculatePoints(char key) {
+        return Objects.requireNonNullElse(pointValues.get(key), 0);
     }
 
     public void buildTree(int branchDepth, int maxDepth, HashMap<String, Move> positionMap) {
@@ -350,7 +338,10 @@ public class Move {
                             throw new OutOfMemoryError("Excessive memory usage");
                         }
                     }
-                    if (future.valid && future.myMove) {
+                    if (future.valid && future.myMove &&
+                            (builtFutures.size() < 2 ||
+                                    (white ? future.totalAdvantage >= builtFutures.first().totalAdvantage :
+                                            future.totalAdvantage <= builtFutures.last().totalAdvantage))) {
                         future.buildTree(branchDepth + 1, maxDepth, positionMap);
                         builtFutures.add(future);
                     }
@@ -360,6 +351,11 @@ public class Move {
             });
             futures.clear();
             futures.addAll(builtFutures);
+            try {
+                totalAdvantage = white ? futures.first().totalAdvantage : futures.last().totalAdvantage;
+            } catch (NoSuchElementException ignored) {
+                totalAdvantage = white ? Integer.MIN_VALUE : Integer.MAX_VALUE;
+            }
         }
     }
 
@@ -368,12 +364,10 @@ public class Move {
         if (futures.isEmpty()) {
             generateFutures();
         }
-        buildTree(0, maxDepth, positionMap);
-        calculateAdvantage(0, maxDepth);
-        if (maxDepth > 1) {
-            pruneFutures(0, maxDepth);
-            calculateAdvantage(0, maxDepth);
+        if (futures.size() == 1) {
+            return futures.first();
         }
+        buildTree(0, maxDepth, positionMap);
         if (futures.isEmpty()) {
             return null;
         } else {
@@ -395,23 +389,8 @@ public class Move {
         return (double) usedMemory / totalMemory;
     }
 
-    private void pruneFutures(int branchDepth, int maxDepth) {
-        if (!futures.isEmpty()) {
-            if (branchDepth < maxDepth - 1) {
-                futures.forEach(future -> future.pruneFutures(branchDepth + 1, maxDepth));
-            }
-            while (futures.size() > 2) {
-                if (white) {
-                    futures.pollFirst();
-                } else {
-                    futures.pollLast();
-                }
-            }
-        }
-    }
-
     public void calculateTotalAdvantage() {
-        totalAdvantage = (double) Math.round(100 * (materialAdvantage + strategicAdvantage + positionAdvantage)) / 100;
+        totalAdvantage = materialAdvantage + strategicAdvantage + positionAdvantage;
     }
 
 }

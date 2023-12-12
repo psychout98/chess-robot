@@ -2,16 +2,13 @@ package org.example;
 
 
 import org.teavm.jso.JSBody;
-import org.teavm.jso.browser.Window;
-import org.teavm.jso.dom.html.HTMLDocument;
-import org.teavm.jso.dom.html.HTMLElement;
 
 public final class AutoMove extends Thread {
 
-    private static final HTMLDocument document = Window.current().getDocument();
 
     private final Move firstMove;
-    private int depth;
+    private Move bestMove;
+    private int level;
 
     public AutoMove(String[] args) {
         FEN fen = new FEN(args[0]);
@@ -20,51 +17,27 @@ public final class AutoMove extends Thread {
             moveArray[i] = args[1].charAt(i) - 48;
         }
         firstMove = new Move(args[2].charAt(0), moveArray, fen);
-        depth = Integer.parseInt(args[3]);
+        level = Integer.parseInt(args[3]);
+        bestMove = firstMove.findBestFuture(0);
     }
 
     public static void main(String[] args) throws InterruptedException {
         AutoMove main = new AutoMove(args);
+        long level = Integer.parseInt(args[3]);
         main.start();
-        while (main.depth > 0) {
-            Thread.sleep(10000);
-            if (main.isAlive()) {
-                main.interrupt();
-                main.depth--;
-                main.start();
-            } else {
-                main.depth = 0;
-            }
-        }
+        main.join(level * 1000);
+        main.interrupt();
+        move(main.bestMove.getMoveCode());
     }
 
     @Override
     public void run() {
-        autoMove(firstMove, depth);
-    }
-    private static void autoMove(Move firstMove, int depth) {
-        Move move = firstMove.findBestFuture(depth);
-        System.out.println(move.getMoveString());
-        move(move.getMoveCode());
+        for (int i=1; i<=level; i++) {
+            bestMove = firstMove.findBestFuture(i);
+        }
     }
 
     @JSBody(params = { "moveCode" }, script = "window[\"move\"](moveCode)")
     public static native void move(String move);
 
-//    public static void refresh(Move move) {
-//        String root = String.format("%s (%s)", move.getMoveString(), move.getTotalAdvantage());
-//        String[] branches = new String[move.getFutures().size()];
-//        for (int i=0; i<branches.length; i++) {
-//            Move future = move.getFutures().get(i);
-//            branches[i] = String.format("%s (%s)", future.getMoveString(), future.getTotalAdvantage());
-//        }
-//        HTMLElement treeView = document.getElementById("tree-view");
-//        StringBuilder elements = new StringBuilder();
-//        elements.append("<div className=\"flex flex-row\">");
-//        for (String branch : branches) {
-//            elements.append(String.format("<div className=\"flex p-3\">%s</div>", branch));
-//        }
-//        elements.append("</div>");
-//        treeView.setInnerHTML(root + elements);
-//    }
 }
