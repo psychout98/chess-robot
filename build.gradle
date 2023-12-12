@@ -1,0 +1,34 @@
+plugins {
+    id 'java'
+    id 'war'
+    id 'org.teavm' version '0.9.0'
+}
+
+java {
+    sourceCompatibility = '17'
+}
+
+group = 'org.example'
+version = '1.0-SNAPSHOT'
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    compileOnly 'org.projectlombok:lombok:1.18.30'
+    annotationProcessor 'org.projectlombok:lombok:1.18.30'
+    implementation 'org.projectlombok:lombok:1.18.28'
+    testImplementation platform('org.junit:junit-bom:5.9.1')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    implementation teavm.libs.jsoApis
+}
+
+test {
+    useJUnitPlatform()
+}
+teavm {
+    all.mainClass.set("org.example.AutoMove")
+    js.addedToWebApp.set(true)
+    js.targetFileName.set("autoMove.js")
+}
