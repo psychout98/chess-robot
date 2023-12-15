@@ -111,7 +111,7 @@ public class Board {
                                 int col = j + (l - location[1]);
                                 if (row >= 0 && row < 8 && col >= 0 && col < 8) {
                                     int[] moveArray = {i, j, row, col};
-                                    Move move = new Move(boardKey[i][j], moveArray, fen);
+                                    Move move = new Move(fen, moveArray);
                                     moves.put(move.getMoveCode(), move);
                                 }
                             }

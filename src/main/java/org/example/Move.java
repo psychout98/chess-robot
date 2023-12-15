@@ -60,11 +60,11 @@ public class Move {
     private static final Comparator<Move> moveComparator = new MoveComparator();
     private static final Runtime rt = Runtime.getRuntime();
 
-    public Move(final char key, final int[] moveArray, final FEN previousFen) {
+    public Move(final FEN previousFen, final int[] moveArray) {
         this.previousFen = previousFen;
+        this.key = previousFen.getBoardKey()[moveArray[0]][moveArray[1]];
         white = Character.isUpperCase(key);
         myMove = white == previousFen.isWhiteToMove();
-        this.key = key;
         enPassant = false;
         moveString = "";
         startRow = moveArray[0];
@@ -287,31 +287,26 @@ public class Move {
             valid = false;
         }
         futures.addAll(copyBoard.getMoves().values().stream().filter(Move::isValid).collect(Collectors.toSet()));
-        strategicAdvantage = calculateStrategicAdvantage();
+        calculateStrategicAdvantage();
         futures.removeIf(future -> !future.myMove);
         calculateTotalAdvantage();
     }
 
-    private int calculateStrategicAdvantage() {
-        int whiteAttacks = futures.stream()
-                .filter(future -> future.valid && future.white)
-                .mapToInt(future -> future.positionAdvantage).sum();
-        int blackAttacks = futures.stream()
-                .filter(future -> future.valid && !future.white)
-                .mapToInt(future -> future.positionAdvantage).sum();
+    private void calculateStrategicAdvantage() {
+        int attacks = futures.stream()
+                .filter(Move::isValid)
+                .mapToInt(Move::getPositionAdvantage).sum();
         int kingQueenFactor = castleMove ? 500 : key == 'k' || key == 'K' || key == 'q' || key == 'Q' ? -100 : 0;
 
-        return (white ? 1 : -1) * (kingQueenFactor) + (whiteAttacks + blackAttacks);
+        strategicAdvantage = ((white ? 1 : -1) * kingQueenFactor) + attacks;
     }
 
     private void calculatePositionAdvantage() {
-        int rowControl = gradient[endRow];
-        int colControl = gradient[endCol];
-        positionAdvantage = (white ? 1 : -1) * (rowControl + colControl);
+        positionAdvantage = (white ? 1 : -1) * (gradient[endRow] + gradient[endCol]);
     }
 
     private void calculateMaterialAdvantage() {
-        materialAdvantage = gradient[endRow] + gradient[endCol];
+        materialAdvantage = 0;
         String[] rows = fenString.split(" ")[0].split("/");
         for (String row : rows) {
             for (char key : row.toCharArray()) {
@@ -326,9 +321,9 @@ public class Move {
 
     public void buildTree(int branchDepth, int maxDepth, HashMap<String, Move> positionMap) {
         if (branchDepth < maxDepth) {
-            Spliterator<Move> spliterator = futures.spliterator();
+            Iterator<Move> iterator = white ? futures.descendingIterator() : futures.iterator();
             TreeSet<Move> builtFutures = new TreeSet<>(moveComparator);
-            spliterator.forEachRemaining(future -> {
+            iterator.forEachRemaining(future -> {
                 Move mappedPosition = positionMap.get(future.position);
                 if (mappedPosition == null) {
                     if (future.futures.isEmpty()) {
@@ -338,10 +333,7 @@ public class Move {
                             throw new OutOfMemoryError("Excessive memory usage");
                         }
                     }
-                    if (future.valid && future.myMove &&
-                            (builtFutures.size() < 2 ||
-                                    (white ? future.totalAdvantage >= builtFutures.first().totalAdvantage :
-                                            future.totalAdvantage <= builtFutures.last().totalAdvantage))) {
+                    if (future.valid && future.myMove && (builtFutures.isEmpty() || isViableMove(future, builtFutures))) {
                         future.buildTree(branchDepth + 1, maxDepth, positionMap);
                         builtFutures.add(future);
                     }
@@ -352,10 +344,18 @@ public class Move {
             futures.clear();
             futures.addAll(builtFutures);
             try {
-                totalAdvantage = white ? futures.first().totalAdvantage : futures.last().totalAdvantage;
+                totalAdvantage = white ? futures.last().totalAdvantage : futures.first().totalAdvantage;
             } catch (NoSuchElementException ignored) {
-                totalAdvantage = white ? Integer.MIN_VALUE : Integer.MAX_VALUE;
+                totalAdvantage = white ? -100 : 100;
             }
+        }
+    }
+
+    private static boolean isViableMove(Move future, TreeSet<Move> builtFutures) {
+        if (future.white) {
+            return future.totalAdvantage >= builtFutures.last().totalAdvantage;
+        } else {
+            return future.totalAdvantage <= builtFutures.first().totalAdvantage;
         }
     }
 
@@ -390,7 +390,7 @@ public class Move {
     }
 
     public void calculateTotalAdvantage() {
-        totalAdvantage = materialAdvantage + strategicAdvantage + positionAdvantage;
+        totalAdvantage = materialAdvantage + strategicAdvantage;
     }
 
 }

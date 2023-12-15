@@ -18,10 +18,10 @@ public class TreeView extends JFrame implements ActionListener {
     Stack<Move> lastMove;
     Map<String, Move> futures;
     JLabel treeSize = new JLabel();
-    int depth = 1;
     JButton run = new JButton("Run at depth 1");
     JButton flip = new JButton("board");
     boolean flipped = false;
+    JSpinner spinner = new JSpinner();
 
 
     public TreeView(Move move) {
@@ -32,10 +32,12 @@ public class TreeView extends JFrame implements ActionListener {
         setVisible(true);
         setDefaultCloseOperation(EXIT_ON_CLOSE);
         setLayout(new BorderLayout());
+        spinner.setModel(new SpinnerNumberModel(0, 0, 10, 1));
         flip.addActionListener(this);
         centerPanel.setLayout(new GridLayout(8, 8));
         run.addActionListener(this);
         northPanel.add(run);
+        northPanel.add(spinner);
         backButton.addActionListener(this);
         northPanel.add(backButton);
         northPanel.add(treeSize);
@@ -49,24 +51,25 @@ public class TreeView extends JFrame implements ActionListener {
     public static void main(String[] args) {
         FEN fen = new FEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
         int[] moveArray = {6, 4, 4, 4};
-        Move firstMove = new Move('P', moveArray, fen);
+        Move firstMove = new Move(fen, moveArray);
         firstMove.generateFutures();
         new TreeView(firstMove);
     }
 
     public void displayBoard() {
         centerPanel.removeAll();
-        centerPanel.add(new JLabel(move.getFenString()));
+        centerPanel.add(new JTextField(move.getFenString()));
+        centerPanel.add(new JTextField(move.getMoveCode()));
         SwingUtilities.updateComponentTreeUI(this);
     }
 
     public void displayFutures() {
         if (move != null) {
+            run.setText("Run at depth: ");
             treeSize.setText("Nodes: " + move.sumFutures());
-            setTitle(move.getMoveString() + "(" + String.format("%s, %s, %s, %s",
+            setTitle(move.getMoveString() + "(" + String.format("%s, %s, %s",
                     move.getTotalAdvantage(),
                     move.getMaterialAdvantage(),
-                    move.getPositionAdvantage(),
                     move.getStrategicAdvantage()) + ") " +
                     (move.isWhite() ? "black to move" : "white to move"));
             if (!lastMove.isEmpty()) {
@@ -103,9 +106,7 @@ public class TreeView extends JFrame implements ActionListener {
             displayFutures();
         }
         if (e.getSource().equals(run)) {
-            move.findBestFuture(depth);
-            depth++;
-            run.setText("Run at depth " + depth);
+            move.findBestFuture((Integer) spinner.getValue());
             displayFutures();
         }
         if (e.getSource().equals(flip)) {
